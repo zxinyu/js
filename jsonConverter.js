@@ -3,6 +3,13 @@ function test(){
         "\n" +
         "type Query {\n" +
         "  user(id: String): User\n" +
+        "  userA: User\n" +
+        "  userB(\n" +
+        "    id: String\n" +
+        "\n" +
+        "#######\n" +
+        "    company: String\n"+
+        "  ): User\n" +
         "}\n" +
         "\n" +
         "type User {\n" +
@@ -13,10 +20,9 @@ function test(){
         "  text: String\n" +
         "}";
 
-    var strArr = str.split("\n");
+    var strArr = makeArr(str);
     var schema = {};
     var responseJson = {};
-    var commentRegex = /^#/;
     var requestRegex = /^type Query {/;
     var endRegex = /^}/;
     var apiNameRegex = /^([^]+)\(/;
@@ -26,47 +32,64 @@ function test(){
     var subModuleNameRegex = /\[([^)]+)\]/;
     for(var i = 0; i < strArr.length; i++){
         var val = strArr[i];
-        if((commentRegex.exec(val) === null) && val !== ""){
-            if(requestRegex.exec(val) !== null){
-                i++;
-                val = strArr[i];
-                while(endRegex.exec(val) === null){
-                    val = val.trim();
+          if(requestRegex.exec(val) !== null){
+              i++;
+              val = strArr[i];
+              while(endRegex.exec(val) === null){
+                  val = val.trim();
+                  var apiName = "";
+                  var apiRequest = "";
+                  var json = {};
+                  if(apiNameRegex.exec(val) !== null){
                     var matches = apiNameRegex.exec(val);
-                    var apiName = matches[1];
-                    matches = apiRequestRegex.exec(val);
-                    var apiRequest = makeJson(matches[1]);
-                    var json = {};
-                    json.request = apiRequest;
+                    apiName = matches[1];
+                    while(responseNameRegex.exec(val) === null){
+                      i++;
+                      val = val.concat(strArr[i].trim());
+                      if(strArr[i].includes(':') && !strArr[i].includes(")")){
+                        val = val.concat(',');
+                      }
+                    }
+                    if(apiRequestRegex.exec(val) !== null){
+                      matches = apiRequestRegex.exec(val);
+                      var apiRequest = makeJson(matches[1]);
+                    }
                     matches = responseNameRegex.exec(val);
                     json.response = matches[1].trim();
-                    schema[apiName] = json;
-                    i++;
-                    val = strArr[i];
-                }
-            }
-            else if(moduleNameRegex.exec(val) !== null){
-                var matches = moduleNameRegex.exec(val);
-                var moduleName = matches[1];
-                i++;
-                val = strArr[i];
-                var json = {};
-                while(endRegex.exec(val) === null){
-                    val = val.trim();
+                  }
+                  else {
                     var arr = val.split(':');
-                    if(subModuleNameRegex.exec(arr[1]) !== null){
-                        // matches = subModuleNameRegex.exec(arr[1]);
-                        json[arr[0]] = arr[1].trim();
-                    }
-                    else{
-                        json[arr[0]] = arr[1].trim();
-                    }
-                    i++;
-                    val = strArr[i];
-                }
-                responseJson[moduleName] = json;
-            }
-        }
+                    apiName = arr[0];
+                    apiRequest = "";
+                    json.response = arr[1].trim();;
+                  }
+
+                  json.request = apiRequest;
+                  schema[apiName] = json;
+                  i++;
+                  val = strArr[i];
+              }
+          }
+          else if(moduleNameRegex.exec(val) !== null){
+              var matches = moduleNameRegex.exec(val);
+              var moduleName = matches[1];
+              i++;
+              val = strArr[i];
+              var json = {};
+              while(endRegex.exec(val) === null){
+                  val = val.trim();
+                  var arr = val.split(':');
+                  if(subModuleNameRegex.exec(arr[1]) !== null){
+                      json[arr[0]] = arr[1].trim();
+                  }
+                  else{
+                      json[arr[0]] = arr[1].trim();
+                  }
+                  i++;
+                  val = strArr[i];
+              }
+              responseJson[moduleName] = json;
+          }
     }
     for (var key in responseJson) {
       if (responseJson.hasOwnProperty(key)){
@@ -75,7 +98,9 @@ function test(){
           var value = moduleName[prop];
           if(subModuleNameRegex.exec(value) !== null){
               matches = subModuleNameRegex.exec(value);
-              responseJson[key][prop] = responseJson[matches[1]];
+              if(responseJson.hasOwnProperty(matches[1])){
+                responseJson[key][prop] = responseJson[matches[1]];
+              }
           }
         }
       }
@@ -92,8 +117,25 @@ function makeJson(jsonStr){
     var jsonArr = jsonStr.split(',');
     var request = {};
     for(var i in jsonArr){
+      if(jsonArr[i] !== ""){
         var arr = jsonArr[i].split(':');
         request[arr[0]] = arr[1].trim();
+      }
     }
     return request;
+}
+
+function makeArr(str){
+  var arr = str.split("\n");
+  var commentRegex = /^#/;
+  var newArr = [];
+  for(var i = 0; i < arr.length; i++){
+    var val = arr[i];
+    while((commentRegex.exec(val) !== null) || (val === "")){
+      i++;
+      val = arr[i];
+    }
+    newArr.push(val);
+  }
+  return newArr;
 }
