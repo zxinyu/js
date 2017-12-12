@@ -110,7 +110,7 @@ function test(){
           schema[key].response = responseJson[schema[key].response];
       }
     }
-    console.log(schema);
+    return schema;
 }
 
 function makeJson(jsonStr){
